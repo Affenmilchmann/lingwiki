@@ -1,4 +1,3 @@
-# wikidownloader
-multithreading wikipedia pages downloading based on https://github.com/goldsmith/Wikipedia
+# lingwiki
 
-### Check [wiki_demo.ipynb](wiki_demo.ipynb) for details
+**todo readme**
