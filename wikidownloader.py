@@ -1,5 +1,4 @@
-from wikipedia import random as rnd_page, page as load_page, set_lang as wiki_lang
-from wikipedia.exceptions import WikipediaException
+import lingwiki
 from requests.exceptions import RequestException
 from time import sleep
 from threading import Thread
@@ -19,6 +18,7 @@ __out_bar_txt: Output = None
 #
 #   VISUALS
 #
+lingwiki.set_language('ru')
 
 def get_widget() -> HBox:
     """
@@ -109,48 +109,13 @@ def update_bar_notdone():
 #   WIKI MODULE
 #
 
-def set_lang(lang):
-    wiki_lang(lang)
-
-def get_random_page(page_buffer, page_index, retry_failed_pages=False, rec_count=0, rec_limit=25):
-    stop_category_list = [
-        "Категория:ПРО:Города",
-    ]
-    
-    page_title = rnd_page()
-
+def get_random_page(page_buffer, page_index):
     try:
-        page = load_page(page_title)
-        for c in page.categories:
-            for stop_c in stop_category_list:
-                if stop_c in c:
-                    if retry_failed_pages:
-                        get_random_page(
-                            page_buffer, 
-                            page_index, 
-                            retry_failed_pages = retry_failed_pages, 
-                            rec_count = rec_count+1
-                        )
-                    else: page_buffer[page_index] = None
-        page_buffer[page_index] = page_title, page.content # remove 1st sent like 'Амба́нт (или Абант[1], др.-греч. Ἄβας, Ἄμβας)'
-    except WikipediaException as e:
-        if retry_failed_pages:
-            get_random_page(
-                page_buffer, 
-                page_index, 
-                retry_failed_pages = retry_failed_pages, 
-                rec_count = rec_count+1
-            )
-        else: page_buffer[page_index] = None
+        page_buffer[page_index] = ''.join(p for p in lingwiki.article(return_paragraphs=True, attempts_limit=0)['paragraphs'])
     except RequestException as e:
         page_buffer[page_index] = None
         print(f"[RequestException] pausing for 10sec...")
-        print(e)
         sleep(10)
-
-    if rec_count >= rec_limit:
-        page_buffer[page_index] = None
-        print(f"[Recursion limit {rec_limit} reached] While getting page {page_title}")
 
 #
 #   THREADING
@@ -159,18 +124,18 @@ def get_random_page(page_buffer, page_index, retry_failed_pages=False, rec_count
 def __copy_buffer(buffer_to_copy: list[str], buffer: list[str]):
     buffer.clear()
     for item in buffer_to_copy:
-        if type(item) is tuple and type(item[1]) is str:
+        if type(item) is str:
             buffer.append(item)
     
 def __join_pages(buffer: list[str]) -> str:
-    return ''.join([f"{page[1]}\n" for page in buffer if type(page) is tuple and type(page[1]) is str])
+    return ''.join([f"{page}\n" for page in buffer if type(page) is str])
 
-def __start_threads(buffer, amount=50, retry_failed_pages=False) -> list[Thread]:
+def __start_threads(buffer, amount=50) -> list[Thread]:
     threads = []
     buffer.clear()
     for i in range(amount):
         buffer.append(False)
-        t = Thread(target=get_random_page, args=(buffer, i, retry_failed_pages))
+        t = Thread(target=get_random_page, args=(buffer, i))
         threads.append(t)
         threads[i].start()
     return threads
@@ -183,7 +148,7 @@ def __wait_threads(threads):
 #   WIKI PAGES GENERATOR
 #
 
-def pages(page_amount, buffer_size=50, retry_failed_pages=False) -> Generator[str, None, None]:
+def pages(page_amount, buffer_size=1, retry_failed_pages=False) -> Generator[str, None, None]:
     """
     Generator that downloads and yields string with 'buffer_size' random pages joined in one string.
     It loads pages in amount of 'buffer_size' in separate threads and joins them in a string.
@@ -196,14 +161,7 @@ def pages(page_amount, buffer_size=50, retry_failed_pages=False) -> Generator[st
      - 'page_amount': amount of random wikipedia pages you want to get. It is guaranteed to
      give you at least asked amount. It probably will give you more
      - 'buffer_size': amount of pages that will be loaded simultaneously and yielded to you joined 
-     in a single string. (return page amount may be less than buffer_size but in the end you will
-     get at least 'page_amount' pages. See 'retry_failed_pages' for details)
-     - 'retry_failed_pages': api is throwing exceptions frequently (around 15% of requests). This 
-     parameter will force api to ask for a new page till it gets it. There is ofc a limit 25 of attempts
-     for example if you have no internet it will try 25 times to get a page and then return None and log
-     an exception. So you better set it True when your buffer_size is small. And False if its big. 
-     With False it will return less pages combined but faster bc it doesnt have to retry to get all
-     the pages
+     in a single string. 
     """
     global __out_txt, __out_page_speed, __out_bar_txt
 
@@ -217,7 +175,7 @@ def pages(page_amount, buffer_size=50, retry_failed_pages=False) -> Generator[st
     thread_list = []
     i = 0
     
-    thread_list = __start_threads(thr_page_buffer, buffer_size, retry_failed_pages)
+    thread_list = __start_threads(thr_page_buffer, buffer_size)
     
     begin_time = time()
     while i < page_amount:
@@ -240,34 +198,33 @@ def pages(page_amount, buffer_size=50, retry_failed_pages=False) -> Generator[st
         if len(thr_page_buffer) == 0:
             __update_txt(f"All pages failed to load. Waiting for {wait_time}min...", __out_txt)
             sleep(wait_time * 60)
-        thread_list = __start_threads(thr_page_buffer, current_buffer_size, retry_failed_pages)
+        thread_list = __start_threads(thr_page_buffer, current_buffer_size)
         # preparing for yielding
         begin_time = time()
-        uniq_titles = [title for title, _ in page_buffer if not title in processed_pages]
-        processed_pages += uniq_titles
         # visuals
         __update_txt(
-            "Done {}/{}.\nLoaded {} pages. {} failed to load, {} duplicates".format(
+            "Done {}/{}.\nLoaded {} failed to load".format(
                 i, page_amount,
-                len(uniq_titles),
                 max(0, len(thr_page_buffer) - len(page_buffer)),
-                len(page_buffer) - len(uniq_titles),
             ), 
             __out_bar_txt
         ) 
         # yielding
-        i += len(uniq_titles)
+        i += 1
 
         # visuals 
         if i >= page_amount:
             __update_txt(
-                "Done {}/{}.\nLoaded {} pages. {} failed to load, {} duplicates".format(
+                "Done {}/{}.\n{} failed to load".format(
                     i, page_amount,
-                    len(uniq_titles),
                     max(0, len(thr_page_buffer) - len(page_buffer)),
-                    len(page_buffer) - len(uniq_titles),
                 ), 
                 __out_bar_txt
             ) 
 
         yield __join_pages(page_buffer)
+
+
+for page_text in pages(3):
+    words = page_text.split(" ")
+    print(f"{len(words)} words\t{''.join(w+' ' for w in words[:7])}...")
