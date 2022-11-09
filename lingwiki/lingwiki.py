@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from .wiki_threads import ThreadPool
 from .wiki_threadfuncs import get_article_target
 
-category_blacklist = list()
+__category_blacklist = list()
 
 class DiffBuffer():
     def __init__(self, size=10, last_val=0) -> None:
@@ -35,7 +35,7 @@ def __print_progress(done_count, target_count, bar_lenght=20, done_ch="#", pendi
 def get_category_blacklist() -> list[str]:
     """returns current list of words that will be ignored if found in categories names"""
     returned_list = list()
-    for category in category_blacklist:
+    for category in __category_blacklist:
         returned_list.append(category)
     return returned_list
 
@@ -44,15 +44,15 @@ def add_category_blacklist(category: str) -> bool:
     Adds 'category' to the blacklist word list. Page will be ignored if any word is found in category name.
     returns True if category added. False if the input word is already listed
     """
-    if category in category_blacklist:
+    if category in __category_blacklist:
         return False
-    category_blacklist.append(category)
+    __category_blacklist.append(category)
 
 def set_category_blacklist(ctgr_list: list[str]) -> None:
     """Set a list of blacklist words. Page will be ignored if any word is found in category name."""
-    category_blacklist.clear()
+    __category_blacklist.clear()
     for category in ctgr_list:
-        category_blacklist.append(category)
+        __category_blacklist.append(category)
 
 def __get_html_file(timeout=10, url=None, lang='en'):
     headers = {'Accept-Encoding': 'identity'}
@@ -60,89 +60,36 @@ def __get_html_file(timeout=10, url=None, lang='en'):
     r = get(url, headers=headers, timeout=timeout)
     return r.text
 
-def __parse_html(**article_settings) -> dict[str, str|dict|None]:
-    settings = {
-        'rec_limit': 0, 'timeout': 10,
-        'url': None, 'lang': 'en',
-        'get_title': True, 'get_paragraphs': False,
-        'get_categories': False, 'get_images': False,
-        'get_infobox': False,
-    }
-    settings.update(article_settings)
-    if settings['rec_limit'] < 0:
-        return None
+def __is_blacklisted(article_categories, blacklisted_categories) -> bool:
+    return bool(set(article_categories).intersection(blacklisted_categories))
 
-    soup = BeautifulSoup(
-        __get_html_file(
-                timeout=settings['timeout'], 
-                url=settings['url'],
-                lang=settings['lang'],
-            ),
-            'html.parser'
-        )
-    raw_categories = soup.find(id = 'mw-normal-catlinks').find_all('li')
-    category_list = [cat.get_text() for cat in raw_categories]
-    for blacklisted_category in category_blacklist:
-        for category in category_list:
-            if blacklisted_category in category:
-                return None
-
-    return_dict = {}
-
-    if settings['get_title']:
-        title = soup.find(id="firstHeading").get_text()
-        return_dict['title'] = title
-    if settings['get_paragraphs']:
-        raw_paragraphs = soup.find_all('p')
-        return_dict['paragraphs'] = [p.get_text() for p in raw_paragraphs]
-    if settings['get_categories']: 
-        raw_categories = soup.find(id = 'mw-normal-catlinks').find_all('li')
-        return_dict['categorits'] = [p.get_text() for p in raw_categories]
-    if settings['get_infobox']:
-        # may be implemented
-        pass
-    if settings['get_images']: 
-        soup.find_all('img')
-        return_dict['images'] = [raw_img['src'] for raw_img in soup.find_all('img')]
-
-    return return_dict
-
-def get_article(**article_settings) -> dict[str, str|dict|None] | None:
+def get_article(url=None, lang='en', attempts_limit=0, timeout=10, **kwargs) -> dict[str, str|dict|None]:
     """
-    Summary
-    ----------
-    Returns a dict of wikipedia's article content.
-
-    If `url` is set, will try to parse article by this url !!! ignoring blacklisted categories too !!! 
-
-    Otherwise will parse random article skipping articles with blacklisted categories.
-    (see `get_category_blacklist()`, `set_category_blacklist()`, `add_category_blacklist()`)
-
-    You can set articles language with `set_language()`
+    Returns a dict with article content.
+    If you need multiple articles use `articles_flow()`,
+    it will save you a lot of time
 
     Params
-    ----------
-    - `attempts_limit` - amount of retries if request failed or returned page had blacklisted category
-    - `timeout` - request timeout
-    - `get_<name>` - select what article content you want to be included in returned dict
+    -------
+    - `url`: str - url to wikipedia page. If None, returns random article.
+    `lang` and blacklisted categories [TODO link to docs] are ignored if url is present.
+    - `attempts_limit`: int - amount of retries if request failed or returned page had blacklisted category
+    (for random pages only)
+    - `timeout`: int - request timeout in seconds
+    - `lang`: str - articles language (for random pages only)
+    
+    kwargs
+    -------
+    Boolean arguments that indicate which content will be included in a returned dict.
+    Arg names match dict keys.
 
-    Return
-    ----------
-    - Returns a dict
-
-    {
-        'title': str | None, - article title
-        'paragraphs': {
-            'title': str | None,- title of the paragraph
-            'text_content': str | None,     - text of the paragraph
-        },
-        'categories' : list[str] | None,     - list of article's categories
-        'infobox': {
-            'title': str | None,
-            'content': str | None, - unparsed html text. There are too many variations of contents
-        }
-        'images': list[str], - list of article's image links. 
-    }
+    [ ! Important ! ] Type after arrow shows what type the returned content will have
+    - `title` -> str
+    - `paragraphs` -> list[str]
+    - `categories` -> list[str]
+    - `image_links` -> list[str]
+    - `article_links` -> list[str] - links that article page has in it. NOT the links to articles.
+    Use `articles_flow()` if you want to get multiple articles with links
     
     Failed returns
     --------------
@@ -151,14 +98,48 @@ def get_article(**article_settings) -> dict[str, str|dict|None] | None:
 
     - Returns None after reaching `attempts_limit`
     - Raises RequestError if request failed
-    - Raises ValueError if no `get_<name>` arguments were set to True
     """
-    return __parse_html(**article_settings)
+    if attempts_limit < 0: return None
+
+    soup = BeautifulSoup(
+                __get_html_file(timeout=timeout, url=url, lang=lang),
+                'html.parser'
+        )
+    raw_categories = soup.find(id = 'mw-normal-catlinks').find_all('li')
+    if not url and __is_blacklisted(raw_categories): 
+        return get_article(
+                url, lang,
+                attempts_limit=attempts_limit-1,
+                timeout=timeout,
+                **kwargs
+            )
+
+    article_content = {
+        'url': None,
+        'title': True,
+        'paragraphs': False,
+        'categories': False,
+        'images': False,
+        'links': False
+    }
+    article_content.update(kwargs)
+
+    return_dict = {}
+
+    if article_content['title']: return_dict['title'] = soup.find(id="firstHeading").get_text()
+    if article_content['paragraphs']: return_dict['paragraphs'] = [p.get_text() for p in soup.find_all('p')]
+    if article_content['categorits']: return_dict['categorits'] = [p.get_text() for p in raw_categories]
+    if article_content['images']: return_dict['images'] = [raw_img['src'] for raw_img in soup.find_all('img')]
+    # TODO if article_content['title']: 
+
+    return return_dict
 
 def articles_flow(
         amount: int, threads_amount: int = 10,
         buffer_size: int = 30, batch_size: int = 1,
-        **article_settings
+        req_limit=0, url=None, timeout=10,
+        lang='en',
+        
     ):
     # # # # # # # # # # # # # # # 
     #         THREADING         #
