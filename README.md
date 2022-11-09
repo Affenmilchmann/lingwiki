@@ -1,3 +1,3 @@
 # lingwiki
 
-**todo readme**
+**TODO readme**

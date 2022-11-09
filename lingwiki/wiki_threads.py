@@ -10,7 +10,7 @@ class ThreadPool():
             target_func: FunctionType, threaded_func: FunctionType,
             **article_settings
         ) -> None:
-        if threads_amount > 100: pass # LOGGER warning
+        if threads_amount > 100: pass # TODO LOGGER warning
         self.__target_func = target_func
         self.__threaded_func = threaded_func
         self.__keep_alive = Event(); self.__keep_alive.set()
@@ -53,7 +53,7 @@ class ThreadPool():
         self.__keep_alive.clear()
         b_time = time()
         alive_count = len(self.__threads)
-        # LOGGER terminating threads
+        # TODO LOGGER terminating threads
         for t in self.__threads: t.join()
         while time() - b_time < timeout and alive_count > 0:
             alive_count = 0
@@ -61,4 +61,4 @@ class ThreadPool():
                 alive_count += int(t.is_alive())
             # LOGGER alive count
             sleep(check_every)
-        # LOGGER failed to terminate threads
+        # TODO LOGGER failed to terminate threads

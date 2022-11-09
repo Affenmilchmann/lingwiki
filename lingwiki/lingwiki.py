@@ -2,8 +2,8 @@ from time import time
 from requests import get
 from bs4 import BeautifulSoup
 
-from wiki_threads import ThreadPool
-from wiki_threadfuncs import get_article_target
+from .wiki_threads import ThreadPool
+from .wiki_threadfuncs import get_article_target
 
 category_blacklist = list()
 

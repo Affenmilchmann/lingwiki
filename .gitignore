@@ -1,1 +1,4 @@
 __pycache__/
+lingwiki.egg-info/
+dist/
+pyproject.toml
