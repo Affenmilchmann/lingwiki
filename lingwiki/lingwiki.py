@@ -2,10 +2,8 @@ from time import time
 from requests import get
 from bs4 import BeautifulSoup
 
-from .wiki_threads import ThreadPool
-from .wiki_threadfuncs import get_article_target
-
-__category_blacklist = list()
+from .threadpool import ThreadPool
+from .thread_targets import get_article_target
 
 class DiffBuffer():
     def __init__(self, size=10, last_val=0) -> None:
@@ -32,28 +30,6 @@ def __print_progress(done_count, target_count, bar_lenght=20, done_ch="#", pendi
     sec_left = (target_count - done_count) / avrg_item_per_sec
     pass
 
-def get_category_blacklist() -> list[str]:
-    """returns current list of words that will be ignored if found in categories names"""
-    returned_list = list()
-    for category in __category_blacklist:
-        returned_list.append(category)
-    return returned_list
-
-def add_category_blacklist(category: str) -> bool:
-    """
-    Adds 'category' to the blacklist word list. Page will be ignored if any word is found in category name.
-    returns True if category added. False if the input word is already listed
-    """
-    if category in __category_blacklist:
-        return False
-    __category_blacklist.append(category)
-
-def set_category_blacklist(ctgr_list: list[str]) -> None:
-    """Set a list of blacklist words. Page will be ignored if any word is found in category name."""
-    __category_blacklist.clear()
-    for category in ctgr_list:
-        __category_blacklist.append(category)
-
 def __get_html_file(timeout=10, url=None, lang='en'):
     headers = {'Accept-Encoding': 'identity'}
     url = url if url else f"https://{lang}.wikipedia.org/wiki/special:random"
@@ -63,7 +39,7 @@ def __get_html_file(timeout=10, url=None, lang='en'):
 def __is_blacklisted(article_categories, blacklisted_categories) -> bool:
     return bool(set(article_categories).intersection(blacklisted_categories))
 
-def get_article(url=None, lang='en', attempts_limit=0, timeout=10, **kwargs) -> dict[str, str|dict|None]:
+def __get_article(url=None, lang='en', attempts_limit=0, timeout=10, **kwargs) -> dict[str, str|dict|None]:
     """
     Returns a dict with article content.
     If you need multiple articles use `articles_flow()`,
@@ -107,7 +83,7 @@ def get_article(url=None, lang='en', attempts_limit=0, timeout=10, **kwargs) -> 
         )
     raw_categories = soup.find(id = 'mw-normal-catlinks').find_all('li')
     if not url and __is_blacklisted(raw_categories): 
-        return get_article(
+        return __get_article(
                 url, lang,
                 attempts_limit=attempts_limit-1,
                 timeout=timeout,
