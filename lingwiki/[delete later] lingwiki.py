@@ -2,8 +2,8 @@ from time import time
 from requests import get
 from bs4 import BeautifulSoup
 
-from .threadpool import ThreadPool
-from .thread_targets import get_article_target
+from ._threadpool import ThreadPool
+from ._thread_targets import get_article_target
 
 class DiffBuffer():
     def __init__(self, size=10, last_val=0) -> None:
@@ -138,7 +138,8 @@ def articles_flow(
     del thread_pool
 
 if __name__ == "__main__":
-    print(get_article(get_paragraphs=True))
+    pass
+    #print(get_article(get_paragraphs=True))
     """c = 0
     for batch in articles_flow(1000, threads_amount=20, batch_size=15):
         c += 1
