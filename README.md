@@ -5,7 +5,7 @@ This module will allow you to download parsed content from wikipedia articles.
 **Done**:
  - `get_article()` - get article's content using url.
 
-**In prgress**
+**In progress**
  - `article_flow()` - get multiple articles content by urls. It threads downloading. Acceppts as input iterable object or a text file.
 
 **ToDo**
