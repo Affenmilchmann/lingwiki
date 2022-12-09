@@ -3,3 +3,4 @@ lingwiki.egg-info/
 dist/
 pyproject.toml
 .pypirc
+.vscode/
