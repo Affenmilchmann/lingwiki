@@ -1,5 +1,5 @@
 from ._threadpool import ThreadPool
-from ._thread_targets import get_url_article_target
+from ._worker_threads import get_url_article_target
 from ._defaults import WIKI_RAND_URL
 from ._parse import parse_page
 from ._network import get_html_file

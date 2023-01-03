@@ -5,7 +5,7 @@ setup(
     description='Allows you to download parsed content of articles from wikipedia.org',
     url='#',
     author='Ivan Osorgin',
-    author_email='author@email.com',
+    author_email='igosorgin@edu.hse.ru',
     license='MIT',
     packages=['lingwiki'],
     zip_safe=False
